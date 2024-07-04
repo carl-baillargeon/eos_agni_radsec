@@ -40,8 +40,9 @@ To use this role, you need to download it from GitHub and place it in a location
 ```bash
 mkdir -p roles
 ```
-2. Clone the role repository from into your roles directory:
+2. Clone the role repository into your roles directory:
 ```bash
+cd roles
 git clone https://github.com/carl-baillargeon/eos_agni_radsec.git
 ```
 3. Ensure your `ansible.cfg` file includes the roles path. Add or modify the following line:

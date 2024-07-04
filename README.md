@@ -26,7 +26,7 @@ General steps done by this role to build the SSL profile:
 - Network access from the Ansible control node to both AGNI service and EOS devices
 - EOS devices must have `aaa authorization exec default` configured for SCP to work
 
-Note: This role uses `network_cli` connection type and `paramiko` SSH type by default. These settings are pre-configured in the role's vars:
+Note: This role **must** uses `network_cli` connection type and `paramiko` SSH type. These settings are pre-configured in the role's vars:
 ```yaml
 ansible_connection: network_cli
 ansible_network_os: eos
@@ -34,13 +34,13 @@ ansible_network_cli_ssh_type: paramiko
 ```
 
 ## Installation
-To use this role, you need to download it from [GitHub](https://github.com/carl-baillargeon/eos_agni_radsec) and place it in a location where Ansible can find it. Here are the steps:
+To use this role, you need to download it from GitHub and place it in a location where Ansible can find it. Here are the steps:
 
 1. Create a roles directory in your Ansible project if you haven't already:
 ```bash
 mkdir -p roles
 ```
-2. Clone the role repository from [GitHub](https://github.com/carl-baillargeon/eos_agni_radsec) into your roles directory:
+2. Clone the role repository from into your roles directory:
 ```bash
 git clone https://github.com/carl-baillargeon/eos_agni_radsec.git
 ```

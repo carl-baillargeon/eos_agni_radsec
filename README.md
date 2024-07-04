@@ -56,7 +56,7 @@ To run the playbook that uses this role:
 
 1. Ensure you have set the required environment variables as described in the [Environment Variables](#environment-variables) section.
 
-2. Create a playbook file (e.g., `configure_agni_radsec.yml`) with the content as shown in the [Example](#example) section. Don't forget to provide the appropriate CSR information.
+2. Create a playbook file (e.g., `configure_agni_radsec.yml`) with the content as shown in the [Example](#example) section. **Don't forget to provide the appropriate CSR information.**
 
 3. Run the playbook using the following command:
 ```bash
@@ -64,7 +64,7 @@ ansible-playbook configure_agni_radsec.yml -i your_inventory_file
 ```
 Replace `your_inventory_file` with the path to your Ansible inventory file.
 
-4. If you need to pass additional variables or override defaults, you can use the `-e` option:
+1. If you need to pass additional variables or override defaults, you can use the `-e` option:
 ```bash
 ansible-playbook configure_agni_radsec.yml -i your_inventory_file -e "agni_base_url=https://your-agni-url.com"
 ```

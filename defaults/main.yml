@@ -1,0 +1,21 @@
+---
+# defaults file for eos_agni_radsec
+
+# Path on local machine to store the temporary certificates
+temp_path: "/tmp"
+
+# AGNI base URL
+agni_base_url: "https://beta.agni.arista.io"
+
+# AGNI RadSec CA Certificate name
+radsec_ca_certificate: "radsec_ca_certificate"
+radsec_ca_certificate_format: "pem"
+
+# EOS SSL Profile name for AGNI RadSec
+eos_ssl_profile: "agni-server"
+
+# EOS private key name for AGNI RadSec
+eos_private_key: "agni-private.key"
+
+# EOS path to save the certificates
+eos_cert_path: "/mnt/flash/"

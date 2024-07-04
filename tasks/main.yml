@@ -1,0 +1,187 @@
+---
+# tasks file for eos_agni_radsec
+
+- name: Check for required environment variables
+  assert:
+    that:
+      - lookup('env', 'AGNI_KEY_ID') != ""
+      - lookup('env', 'AGNI_KEY_VALUE') != ""
+      - lookup('env', 'AGNI_ORG_ID') != ""
+    fail_msg: "One or more required environment variables (AGNI_KEY_ID, AGNI_KEY_VALUE, AGNI_ORG_ID) are not set."
+
+- name: Check for required CSR variables
+  assert:
+    that:
+      - eos_csr_info.country != ""
+      - eos_csr_info.state != ""
+      - eos_csr_info.locality != ""
+      - eos_csr_info.organization != ""
+      - eos_csr_info.organizational_unit != ""
+      - eos_csr_info.domain != ""
+    fail_msg: "One or more required CSR variables are not set."
+
+- name: Gather EOS facts
+  arista.eos.eos_facts:
+    gather_subset:
+      - config
+
+- name: Gather EOS show version
+  arista.eos.eos_command:
+    commands: show version | json
+  register: show_version
+
+- name: Validate EOS SCP configuration
+  assert:
+    that:
+      - "'aaa authorization exec default' in ansible_net_config"
+    msg: "'aaa authorization exec default' is not configured on the switch and is required for SCP to work on EOS"
+
+- name: Authenticate to AGNI and generate API cookies
+  ansible.builtin.uri:
+    url: "{{ agni_base_url }}/cvcue/keyLogin?keyID={{ lookup('env', 'AGNI_KEY_ID') }}&keyValue={{ lookup('env', 'AGNI_KEY_VALUE') }}&casURL=%3Cstring%3E"
+    method: GET
+    return_content: true
+    headers:
+      Accept: "application/json"
+  register: auth_response
+  until: auth_response.status == 200
+  retries: 10
+  delay: 2
+  delegate_to: localhost
+  run_once: true
+
+- name: Set auth cookie
+  ansible.builtin.set_fact:
+    auth_cookie: "{{ auth_response.cookies | dict2items | map(attribute='key') | zip(auth_response.cookies | dict2items | map(attribute='value')) | map('join', '=') | join(',') }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Retrieve AGNI RadSec CA Certificate
+  ansible.builtin.uri:
+    url: "{{ agni_base_url }}/api/config.cert.radSec.ca.get"
+    method: POST
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      Cookie: "{{ auth_cookie }}"
+    return_content: true
+  register: api_response
+  until: api_response.status == 200
+  retries: 10
+  delay: 2
+  delegate_to: localhost
+  run_once: true
+
+- name: Store the AGNI RadSec CA Certificate in a temporary file
+  ansible.builtin.copy:
+    content: "{{ api_response.json.data.cert }}"
+    dest: "{{ temp_path }}/{{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }}"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: Check if AGNI RadSec CA Certificate and private key exist
+  arista.eos.eos_command:
+    commands:
+      - show management security ssl certificate {{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }} | json
+      - show management security ssl key {{ eos_private_key }} | json
+  register: cert_key_check
+
+- name: Copy the AGNI RadSec CA Certificate to the switch
+  ansible.netcommon.net_put:
+    src: "{{ temp_path }}/{{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }}"
+    dest: "{{ eos_cert_path }}/{{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }}"
+  when: not cert_key_check.stdout_lines[0].certificates
+
+- name: Generate the AGNI RadSec private key
+  arista.eos.eos_command:
+    commands: security pki key generate rsa 2048 {{ eos_private_key }}
+  when: not cert_key_check.stdout_lines[1].publicKeys
+
+- name: Generate the CSR for AGNI
+  arista.eos.eos_command:
+    commands: >
+      security pki certificate generate signing-request key {{ eos_private_key }} parameters
+      common-name "{{ show_version.stdout_lines.0.systemMacAddress }}"
+      country "{{ eos_csr_info.country }}"
+      state "{{ eos_csr_info.state }}"
+      locality "{{ eos_csr_info.locality }}"
+      organization "{{ eos_csr_info.organization }}"
+      organization-unit "{{ eos_csr_info.organizational_unit }}"
+      subject-alternative-name dns {{ inventory_hostname }}.{{ eos_csr_info.domain }}
+  register: csr_output
+
+- name: Send the CSR to AGNI and return the signed certificate
+  ansible.builtin.uri:
+    url: "{{ agni_base_url }}/api/config.cert.radsec.client.enroll"
+    method: POST
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      Cookie: "{{ auth_cookie }}"
+      X-AGNI-ORG-ID: "{{ lookup('env', 'AGNI_ORG_ID') }}"
+    body_format: json
+    body:
+      csr: "{{ csr_output.stdout[0] | regex_replace('\\n$', '') }}"
+      dnsnames:
+        - "{{ inventory_hostname }}.{{ eos_csr_info.domain }}"
+      nadID: 0
+      orgID: "{{ lookup('env', 'AGNI_ORG_ID') }}"
+      password: ""
+  register: signed_cert_response
+  until: signed_cert_response.status == 200
+  retries: 10
+  delay: 2
+
+- name: Validate the signed certificate response
+  assert:
+    that:
+      - signed_cert_response.json.data.x509Certificate is defined
+    fail_msg: "Failed to get the signed certificate from AGNI: {{ signed_cert_response.json.error | default('Unknown error') }}"
+    success_msg: "Successfully received signed certificate from AGNI"
+
+- name: Save the signed certificate to a temporary file
+  ansible.builtin.copy:
+    content: "{{ signed_cert_response.json.data.x509Certificate }}"
+    dest: "{{ temp_path }}/{{ inventory_hostname }}.{{ eos_csr_info.domain }}.crt"
+    mode: "0644"
+
+- name: Copy the signed certificate to the switch
+  ansible.netcommon.net_put:
+    src: "{{ temp_path }}/{{ inventory_hostname }}.{{ eos_csr_info.domain }}.crt"
+    dest: "{{ eos_cert_path }}/{{ inventory_hostname }}.{{ eos_csr_info.domain }}.crt"
+
+- name: Delete the temporary AGNI RadSec CA Certificate file
+  ansible.builtin.file:
+    path: "{{ temp_path }}/{{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }}"
+    state: absent
+  delegate_to: localhost
+  run_once: true
+
+- name: Delete the temporary signed certificate file
+  ansible.builtin.file:
+    path: "{{ temp_path }}/{{ inventory_hostname }}.{{ eos_csr_info.domain }}.crt"
+    state: absent
+
+- name: Configure the SSL profile for AGNI RadSec
+  arista.eos.command:
+    commands:
+      - "copy flash:{{ inventory_hostname }}.{{ eos_csr_info.domain }}.crt certificate:"
+      - "copy flash:{{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }} certificate:"
+      - "configure"
+      - "management security"
+      - "ssl profile {{ eos_ssl_profile }}"
+      - "certificate {{ inventory_hostname }}.{{ eos_csr_info.domain }}.crt key {{ eos_private_key }}"
+
+- name: Get the SSL profile configuration
+  arista.eos.eos_command:
+    commands: show management security ssl profile {{ eos_ssl_profile }} | json
+  register: ssl_profile_output
+
+- name: Validate the SSL profile configuration
+  assert:
+    that:
+      - "ssl_profile_output.stdout_lines[0].profileStatus[eos_ssl_profile].profileState == 'valid'"
+      - "ssl_profile_output.stdout_lines[0].profileStatus[eos_ssl_profile].profileError | length == 0"
+    fail_msg: "SSL profile '{{ eos_ssl_profile }}' is not valid. Errors: {{ ssl_profile_output.stdout_lines[0].profileStatus[eos_ssl_profile].profileError | default(['No specific error message']) | join(', ') }}"
+    success_msg: "SSL profile '{{ eos_ssl_profile }}' is valid and configured correctly"

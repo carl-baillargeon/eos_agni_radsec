@@ -1,0 +1,7 @@
+---
+# vars file for eos_agni_radsec
+
+# Required connection variables for EOS in the role
+ansible_connection: network_cli
+ansible_network_os: eos
+ansible_network_cli_ssh_type: paramiko

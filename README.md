@@ -63,7 +63,7 @@ To run the playbook that uses this role:
 
 2. Create a playbook file (e.g., `configure_agni_radsec.yml`) with the content as shown in the [Example](#example) section.
 
-    ⚠️ **Important:** Don't forget to provide the appropriate CSR information.
+⚠️ **Important:** Don't forget to provide the appropriate CSR information.
 
 3. Run the playbook using the following command:
 ```bash

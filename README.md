@@ -19,19 +19,22 @@ General steps done by this role to build the SSL profile:
 
 ## Prerequisites
 
-- Install [Python](https://www.python.org/downloads/) 3.9 or later
-- Install [ansible-core](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) from **2.15.0** to **2.17.x.** Avoid the `pipx` installation method
-- Install `ansible.netcommon` collection
-- Install `arista.eos` collection
+- Install [Python](https://www.python.org/downloads/) (Tested with Python 3.12.3)
+- Install [ansible-core](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) (Tested with ansible-core 2.17.4)
+- Install `scp` Python package (Tested with scp 0.15.0)
+- Install `ansible.netcommon` collection (Tested with ansible.netcommon 7.1.0)
+- Install `arista.eos` collection (Tested with arista.eos 10.0.0)
 - Network access from the Ansible control node to both AGNI service and EOS devices
 - EOS devices must have `aaa authorization exec default` configured for SCP to work
+- Ensure you have a properly configured [Ansible inventory file](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html) that defines the target EOS devices
 
-Note: This role **must** uses `network_cli` connection type and `paramiko` SSH type. These settings are pre-configured in the role's vars:
+📝 **Note:** This role **must** uses `network_cli` connection type and `paramiko` SSH type. These settings are pre-configured in the role's vars:
 ```yaml
 ansible_connection: network_cli
 ansible_network_os: eos
 ansible_network_cli_ssh_type: paramiko
 ```
+⚠️ **Warning:** This role will **overwrite** any existing AGNI SSL profile, private key, and certificates if they already exist on the device. Please ensure this is acceptable before proceeding.
 
 ## Installation
 To use this role, you need to download it from GitHub and place it in a location where Ansible can find it. Here are the steps:
@@ -50,13 +53,17 @@ git clone https://github.com/carl-baillargeon/eos_agni_radsec.git
 roles_path = roles
 ```
 
+More details on storing and finding Ansible roles can be found in the [Ansible documentation](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_reuse_roles.html#storing-and-finding-roles).
+
 ## Running the Playbook
 
 To run the playbook that uses this role:
 
 1. Ensure you have set the required environment variables as described in the [Environment Variables](#environment-variables) section.
 
-2. Create a playbook file (e.g., `configure_agni_radsec.yml`) with the content as shown in the [Example](#example) section. **Don't forget to provide the appropriate CSR information.**
+2. Create a playbook file (e.g., `configure_agni_radsec.yml`) with the content as shown in the [Example](#example) section.
+
+    ⚠️ **Important:** Don't forget to provide the appropriate CSR information.
 
 3. Run the playbook using the following command:
 ```bash
@@ -64,18 +71,18 @@ ansible-playbook configure_agni_radsec.yml -i your_inventory_file
 ```
 Replace `your_inventory_file` with the path to your Ansible inventory file.
 
-1. If you need to pass additional variables or override defaults, you can use the `-e` option:
+4. If you need to pass additional variables or override defaults, you can use the `-e` option:
 ```bash
 ansible-playbook configure_agni_radsec.yml -i your_inventory_file -e "agni_base_url=https://your-agni-url.com"
 ```
 Remember to ensure that your Ansible control node has network access to both the AGNI service and your EOS devices.
 
-## Example
+## Example Playbook
 
 ```yaml title="configure_agni_radsec.yml"
 ---
 - name: Configure SSL profile for AGNI RadSec on EOS Switches
-  hosts: GLOBAL # <-- Targeted devices
+  hosts: GLOBAL # <-- Targeted devices from the Ansible inventory
   gather_facts: no
   tasks:
     - name: Load and run the role eos_agni_radsec
@@ -89,7 +96,6 @@ Remember to ensure that your Ansible control node has network access to both the
           locality: "MTL"
           organization: "Home"
           organizational_unit: "Lab"
-          domain: "home.arpa"
 ```
 
 ## Input variables
@@ -122,7 +128,6 @@ eos_csr_info:
   locality: <str>
   organization: <str>
   organizational_unit: <str>
-  domain: <str>
 ```
 ## Environment Variables
 

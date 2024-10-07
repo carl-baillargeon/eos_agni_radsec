@@ -37,7 +37,7 @@
 
 - name: Authenticate to AGNI and generate API cookies
   ansible.builtin.uri:
-    url: "{{ agni_base_url }}/cvcue/keyLogin?keyID={{ lookup('env', 'AGNI_KEY_ID') }}&keyValue={{ lookup('env', 'AGNI_KEY_VALUE') }}&casURL=%3Cstring%3E"
+    url: "{{ agni_base_url }}/cvcue/keyLogin?keyID={{ lookup('env', 'AGNI_KEY_ID') }}&keyValue={{ lookup('env', 'AGNI_KEY_VALUE') }}"
     method: GET
     headers:
       Accept: application/json

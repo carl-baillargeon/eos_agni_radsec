@@ -157,6 +157,7 @@
       - "management security"
       - "ssl profile {{ eos_ssl_profile }}"
       - "certificate {{ ansible_net_hostname }}.crt key {{ eos_private_key }}"
+      - "trust certificate {{ radsec_ca_certificate }}.{{ radsec_ca_certificate_format }}"
 
 - name: Get the SSL profile configuration
   arista.eos.eos_command:
